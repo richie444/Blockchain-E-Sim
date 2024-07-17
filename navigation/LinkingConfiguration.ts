@@ -26,7 +26,7 @@ const linking: LinkingOptions<RootStackParamList> = {
 					},
 					Debug: {
 						screens: {
-							DebugScreen: 'debug',
+							DebugScreen: 'Profile',
 						},
 					},
 				},
