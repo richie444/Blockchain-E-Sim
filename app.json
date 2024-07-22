@@ -36,6 +36,10 @@
         "projectId": "1b7adb36-e294-47b3-b4e4-1239c62ea346"
       }
     },
-    "owner": "richie444"
+    "owner": "richie444",
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
   }
 }

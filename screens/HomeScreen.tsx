@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Button, TextInput, Alert, ActivityIndicator, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useWallet } from './WalletContext';
+import "react-native-get-random-values"
+import "@ethersproject/shims"
 import { ethers } from 'ethers';
 import ESIM from '../artifacts/contracts/SimCard.sol/ESIM.json';
 import { StackNavigationProp } from '@react-navigation/stack';

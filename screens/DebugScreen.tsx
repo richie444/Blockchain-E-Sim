@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, SafeAreaView, ScrollView, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import "react-native-get-random-values"
+import "@ethersproject/shims"
 import { ethers } from 'ethers';
 import { useWallet } from './WalletContext';
 import ESIM from '../artifacts/contracts/SimCard.sol/ESIM.json';
