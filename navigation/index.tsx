@@ -16,6 +16,8 @@ import NotFoundScreen from '../screens/NotFoundScreen';
 import { RootStackParamList } from '../types';
 import BottomTabNavigator from './BottomTabNavigator';
 import LinkingConfiguration from './LinkingConfiguration';
+import WalletConnect from '../screens/WalletConnect';
+
 
 export default function Navigation({
 	colorScheme,
@@ -39,6 +41,8 @@ const Stack = createStackNavigator<RootStackParamList>();
 function RootNavigator() {
 	return (
 		<Stack.Navigator screenOptions={{ headerShown: false }}>
+			      <Stack.Screen name="WalletConnect" component={WalletConnect} />
+
 			<Stack.Screen name="Root" component={BottomTabNavigator} />
 			<Stack.Screen
 				name="NotFound"

@@ -9,21 +9,24 @@ import useColorScheme from './hooks/useColorScheme';
 import { lightTheme, darkTheme } from './theme';
 
 import Navigation from './navigation';
+import { WalletProvider } from './screens/WalletContext';
 
 export default function App(): JSX.Element | null {
-	const isLoadingComplete = useCachedResources();
-	const colorScheme = useColorScheme();
+  const isLoadingComplete = useCachedResources();
+  const colorScheme = useColorScheme();
 
-	if (!isLoadingComplete) {
-		return null;
-	} else {
-		return (
-			<ThemeProvider theme={colorScheme === 'light' ? lightTheme : darkTheme}>
-				<SafeAreaProvider>
-					<Navigation colorScheme={colorScheme} />
-					<StatusBar />
-				</SafeAreaProvider>
-			</ThemeProvider>
-		);
-	}
+  if (!isLoadingComplete) {
+    return null;
+  } else {
+    return (
+      <WalletProvider>
+        <ThemeProvider theme={colorScheme === 'light' ? lightTheme : darkTheme}>
+          <SafeAreaProvider>
+            <Navigation colorScheme={colorScheme} />
+            <StatusBar />
+          </SafeAreaProvider>
+        </ThemeProvider>
+      </WalletProvider>
+    );
+  }
 }

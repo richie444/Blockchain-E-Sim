@@ -19,6 +19,6 @@ export default function NotFoundScreen({
 }
 
 export const LinkText = styled(Text)`
-	font-size: 14px;
+	font-size: 14px;w
 	color: #2e78b7;
 `;

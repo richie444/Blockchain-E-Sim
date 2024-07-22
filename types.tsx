@@ -6,22 +6,29 @@
 export type RootStackParamList = {
 	Root: undefined;
 	NotFound: undefined;
-};
-
-export type BottomTabParamList = {
+	WalletConnect: undefined;
+  };
+  
+  export type BottomTabParamList = {
 	Home: undefined;
 	Wallet: undefined;
 	Debug: undefined;
-};
-
-export type TabWalletParamList = {
-	WalletScreen: undefined;
-};
-
-export type TabHomeParamList = {
+	Root: undefined;
+  };
+  
+  export type TabWalletParamList = {
+	WalletScreen: {
+	  address: string;
+	  name: string;
+	  email: string;
+	  simNumber: string;
+	};
+  };
+  
+  export type TabHomeParamList = {
 	HomeScreen: undefined;
-};
-
-export type TabDebugParamList = {
+  };
+  
+  export type TabDebugParamList = {
 	DebugScreen: undefined;
-};
+  };
