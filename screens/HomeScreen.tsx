@@ -1,24 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, Button, TextInput, Alert, ActivityIndicator, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Text,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useWallet } from './WalletContext';
-import "react-native-get-random-values"
-import "@ethersproject/shims"
-import { ethers } from 'ethers';
-import ESIM from '../artifacts/contracts/SimCard.sol/ESIM.json';
+import { useAddress } from './WalletContext';
+import 'react-native-get-random-values';
+import '@ethersproject/shims';
+import { ethers, BrowserProvider } from 'ethers';
+import ESIM from './ESIM.json';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { BottomTabParamList, TabWalletParamList } from '../types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers-react-native';
 
 type HomeScreenNavigationProp = StackNavigationProp<BottomTabParamList, 'Wallet'> & {
   navigate: (screen: 'Wallet', params: TabWalletParamList['WalletScreen']) => void;
 };
 
-const CONTRACT_ADDRESS = "0xb2484cf5bA0922b0375d84E138281F55fC537350";
+const CONTRACT_ADDRESS = '0xb2484cf5bA0922b0375d84E138281F55fC537350';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
-  const { address, setAddress, setConnected } = useWallet();
+  const { setAddress, setConnected } = useAddress();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [simNumber, setSimNumber] = useState('');
@@ -26,9 +37,11 @@ const HomeScreen: React.FC = () => {
   const [loginSimNumber, setLoginSimNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activityLog, setActivityLog] = useState<string[]>([]);
+  const { address, isConnected } = useWeb3ModalAccount();
+  const { walletProvider } = useWeb3ModalProvider();
 
   const addToActivityLog = (message: string) => {
-    setActivityLog(prevLog => [...prevLog, message]);
+    setActivityLog((prevLog) => [...prevLog, message]);
     console.log(message);
   };
 
@@ -40,16 +53,9 @@ const HomeScreen: React.FC = () => {
 
   const connectWallet = async () => {
     try {
-      if (!(window as any).ethereum) {
-        Alert.alert('Error', 'MetaMask is not installed');
-        return;
-      }
-
-      const provider = new ethers.providers.Web3Provider((window as any).ethereum);
-      const accounts = await provider.send('eth_requestAccounts', []);
-      setAddress(accounts[0]);
-      setConnected(true);
-      addToActivityLog(`Connected wallet: ${accounts[0]}`);
+      setAddress(address);
+      setConnected(isConnected);
+      addToActivityLog(`Connected wallet: ${address}`);
     } catch (error) {
       console.error('Wallet connection error:', error);
       Alert.alert('Error', 'Failed to connect wallet');
@@ -59,7 +65,7 @@ const HomeScreen: React.FC = () => {
 
   const checkRegistrationStatus = async () => {
     try {
-      const provider = new ethers.providers.Web3Provider((window as any).ethereum);
+      const provider = new BrowserProvider(walletProvider);
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
       const user = await contract.users(address);
       setIsRegistered(user.isRegistered);
@@ -84,8 +90,8 @@ const HomeScreen: React.FC = () => {
 
     try {
       setIsLoading(true);
-      const provider = new ethers.providers.Web3Provider((window as any).ethereum);
-      const signer = provider.getSigner();
+      const provider = new BrowserProvider(walletProvider);
+      const signer = await provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, signer);
 
       const tx = await contract.registerUser(name, email);
@@ -104,7 +110,7 @@ const HomeScreen: React.FC = () => {
       }
 
       checkRegistrationStatus();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
       if (error.error && error.error.message) {
         Alert.alert('Error', error.error.message);
@@ -125,7 +131,7 @@ const HomeScreen: React.FC = () => {
     }
 
     try {
-      const provider = new ethers.providers.Web3Provider((window as any).ethereum);
+      const provider = new BrowserProvider(walletProvider);
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
 
       const [userName, userEmail, isRegistered] = await contract.getUserDetails(loginSimNumber);
@@ -136,7 +142,7 @@ const HomeScreen: React.FC = () => {
           address: address,
           name: userName,
           email: userEmail,
-          simNumber: loginSimNumber
+          simNumber: loginSimNumber,
         });
       } else {
         addToActivityLog('User is not registered');
@@ -149,77 +155,87 @@ const HomeScreen: React.FC = () => {
     }
   };
 
+  if (!isConnected) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          <Text style={styles.title}>E-SIM Wallet</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.button} onPress={connectWallet}>
+              <Text style={styles.buttonText}>Connect Wallet</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollView}>
         <View style={styles.container}>
           <Text style={styles.title}>E-SIM Wallet</Text>
-          {address ? (
-            <>
-              <View style={styles.card}>
-                <MaterialCommunityIcons name="wallet-outline" size={24} color="#4A90E2" style={styles.icon} />
-                <Text style={styles.addressText}>Connected Address:</Text>
-                <Text style={styles.addressValue}>{`${address.slice(0, 6)}...${address.slice(-4)}`}</Text>
-              </View>
-              {!isRegistered ? (
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Register</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Name"
-                    value={name}
-                    onChangeText={setName}
-                    placeholderTextColor="#A0AEC0"
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholderTextColor="#A0AEC0"
-                    keyboardType="email-address"
-                  />
-                  <TouchableOpacity style={styles.button} onPress={registerUser} disabled={isLoading}>
-                    {isLoading ? (
-                      <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.buttonText}>Register</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Login</Text>
-                  <Text style={styles.simNumberText}>SIM Number: {simNumber}</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter SIM Number"
-                    value={loginSimNumber}
-                    onChangeText={setLoginSimNumber}
-                    placeholderTextColor="#A0AEC0"
-                  />
-                  <TouchableOpacity style={styles.button} onPress={login}>
-                    <Text style={styles.buttonText}>Login</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </>
-          ) : (
+          <View style={styles.card}>
+            <MaterialCommunityIcons name="wallet-outline" size={24} color="#4A90E2" style={styles.icon} />
+            <Text style={styles.addressText}>Connected Address:</Text>
+            <Text style={styles.addressValue}>{`${address.slice(0, 6)}...${address.slice(-4)}`}</Text>
+          </View>
+          <View style={styles.card}>
+            {isRegistered ? (
+              <>
+                <Text style={styles.cardTitle}>Login</Text>
+                <Text style={styles.simNumberText}>SIM Number: {simNumber}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.cardTitle}>Register</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Name"
+                  value={name}
+                  onChangeText={setName}
+                  placeholderTextColor="#A0AEC0"
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholderTextColor="#A0AEC0"
+                  keyboardType="email-address"
+                />
+                <TouchableOpacity style={styles.button} onPress={registerUser} disabled={isLoading}>
+                  {isLoading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Register</Text>}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+          <View style={styles.loginContainer}>
             <View style={styles.card}>
-              <TouchableOpacity style={styles.button} onPress={connectWallet}>
-                <Text style={styles.buttonText}>Connect Wallet</Text>
+              <Text style={styles.cardTitle}>Login</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter SIM Number"
+                value={loginSimNumber}
+                onChangeText={setLoginSimNumber}
+                placeholderTextColor="#A0AEC0"
+              />
+              <TouchableOpacity style={styles.button} onPress={login}>
+                <Text style={styles.buttonText}>Login</Text>
               </TouchableOpacity>
             </View>
-          )}
-          {activityLog.length > 0 && (
-            <View style={styles.activityLogCard}>
-              <Text style={styles.activityLogTitle}>Activity Log</Text>
-              {activityLog.map((log, index) => (
-                <Text key={index} style={styles.activityLogText}>{log}</Text>
-              ))}
-            </View>
-          )}
+          </View>
         </View>
+        {activityLog.length > 0 && (
+          <View style={styles.activityLogCard}>
+            <Text style={styles.activityLogTitle}>Activity Log</Text>
+            {activityLog.map((log: any, index: any) => (
+              <Text key={index} style={styles.activityLogText}>
+                {log}
+              </Text>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -302,6 +318,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2D3748',
     marginBottom: 15,
+  },
+  loginContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   activityLogCard: {
     backgroundColor: '#EDF2F7',

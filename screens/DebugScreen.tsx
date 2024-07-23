@@ -1,40 +1,38 @@
+import "@ethersproject/shims";
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, SafeAreaView, ScrollView, TextInput } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import "react-native-get-random-values"
-import "@ethersproject/shims"
-import { ethers } from 'ethers';
-import { useWallet } from './WalletContext';
-import ESIM from '../artifacts/contracts/SimCard.sol/ESIM.json';
+import "react-native-get-random-values";
+import { useAddress } from './WalletContext';
+import ESIM from './ESIM.json';
+import { ethers, BrowserProvider } from 'ethers';
+import { useWeb3ModalProvider } from '@web3modal/ethers-react-native';
 
 const CONTRACT_ADDRESS = "0xb2484cf5bA0922b0375d84E138281F55fC537350";
 
 const ProfileScreen = () => {
-  const { address } = useWallet();
+  const { address, setAddress, setConnected } = useAddress();
   const [userDetails, setUserDetails] = useState({ name: '', email: '', simNumber: '' });
   const [editMode, setEditMode] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [editedEmail, setEditedEmail] = useState('');
+  const { walletProvider } = useWeb3ModalProvider();
 
   useEffect(() => {
-    fetchUserDetails();
+    if (address) {
+      fetchUserDetails();
+    }
   }, [address]);
 
   const fetchUserDetails = async () => {
     try {
-      if (!(window as any).ethereum) {
-        Alert.alert('Error', 'MetaMask is not installed');
-        return;
-      }
-
-      const provider = new ethers.providers.Web3Provider((window as any).ethereum);
+      const provider = new BrowserProvider(walletProvider);
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
-
       const user = await contract.users(address);
       setUserDetails({
         name: user.name,
         email: user.email,
-        simNumber: user.simNumber
+        simNumber: user.simNumber,
       });
       setEditedName(user.name);
       setEditedEmail(user.email);
@@ -46,24 +44,16 @@ const ProfileScreen = () => {
 
   const updateUserDetails = async () => {
     try {
-      if (!(window as any).ethereum) {
-        Alert.alert('Error', 'MetaMask is not installed');
-        return;
-      }
-
-      const provider = new ethers.providers.Web3Provider((window as any).ethereum);
-      const signer = provider.getSigner();
+      const provider = new BrowserProvider(walletProvider);
+      const signer = await provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, signer);
-
       const tx = await contract.updateUser(editedName, editedEmail);
       await tx.wait();
-
-      setUserDetails(prevDetails => ({
+      setUserDetails((prevDetails) => ({
         ...prevDetails,
         name: editedName,
-        email: editedEmail
+        email: editedEmail,
       }));
-
       setEditMode(false);
       Alert.alert('Success', 'User details updated successfully');
     } catch (error) {
@@ -72,15 +62,21 @@ const ProfileScreen = () => {
     }
   };
 
+  const disconnectWallet = () => {
+    setAddress(null);
+    setConnected(false);
+    Alert.alert('Success', 'Wallet disconnected successfully');
+  };
+
   const renderEditButton = () => (
-    <TouchableOpacity 
-      style={[styles.editButton, editMode && styles.editButtonActive]} 
+    <TouchableOpacity
+      style={[styles.editButton, editMode && styles.editButtonActive]}
       onPress={() => setEditMode(!editMode)}
     >
-      <MaterialCommunityIcons 
-        name={editMode ? "check" : "account-edit"} 
-        size={24} 
-        color={editMode ? "#FFFFFF" : "#4A90E2"} 
+      <MaterialCommunityIcons
+        name={editMode ? "check" : "account-edit"}
+        size={24}
+        color={editMode ? "#FFFFFF" : "#4A90E2"}
       />
     </TouchableOpacity>
   );
@@ -144,8 +140,8 @@ const ProfileScreen = () => {
               <Text style={styles.actionText}>Save Changes</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.actionButton}>
-              <Text style={styles.actionText}>Log Out</Text>
+            <TouchableOpacity style={styles.actionButton} onPress={disconnectWallet}>
+              <Text style={styles.actionText}>Disconnect Wallet</Text>
             </TouchableOpacity>
           )}
         </View>

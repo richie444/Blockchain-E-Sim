@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "blockchain-e-sim",
+    "name": "blockchain-E-Sim",
     "slug": "blockchain-e-sim",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -19,7 +19,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.richie444.blockchainesim"
     },
     "android": {
       "adaptiveIcon": {
@@ -39,7 +40,8 @@
     "owner": "richie444",
     "plugins": [
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "./queries.js"
     ]
   }
 }
