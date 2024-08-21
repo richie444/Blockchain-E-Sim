@@ -1,6 +1,4 @@
-Here is a comprehensive README for your blockchain eSIM project using Expo, Hardhat, and MetaMask:
 
----
 
 # Blockchain eSIM Project
 
