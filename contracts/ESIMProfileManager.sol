@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /**
@@ -75,7 +75,7 @@ contract ESIMProfileManager is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address _zkVerifier) {
+    constructor(address _zkVerifier) Ownable(msg.sender) {
         zkVerifier = _zkVerifier;
     }
 

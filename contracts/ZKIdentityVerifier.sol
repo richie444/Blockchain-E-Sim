@@ -50,7 +50,7 @@ contract ZKIdentityVerifier {
     // State variables
     mapping(address => ZKIdentity) public zkIdentities;
     mapping(bytes32 => AttributeProof) public attributeProofs;
-    mapping(string => VerifyingKey) public verifyingKeys;
+    mapping(string => VerifyingKey) private verifyingKeys;
     mapping(address => bool) public authorizedVerifiers;
     
     bytes32[] public allProofHashes;
@@ -86,6 +86,26 @@ contract ZKIdentityVerifier {
         supportedAttributes.push(ATTR_IDENTITY_VERIFICATION);
         supportedAttributes.push(ATTR_CREDIT_SCORE);
         supportedAttributes.push(ATTR_SUBSCRIPTION_ELIGIBILITY);
+    }
+    
+    /**
+     * @dev Get verifying key for a specific attribute type
+     * @param attributeType The attribute type to get the key for
+     * @return alpha The alpha component of the verifying key
+     * @return beta The beta component of the verifying key
+     * @return gamma The gamma component of the verifying key
+     * @return delta The delta component of the verifying key
+     * @return ic The IC components of the verifying key
+     */
+    function getVerifyingKey(string memory attributeType) external view returns (
+        uint256[2] memory alpha,
+        uint256[2][2] memory beta,
+        uint256[2][2] memory gamma,
+        uint256[2][2] memory delta,
+        uint256[][] memory ic
+    ) {
+        VerifyingKey storage key = verifyingKeys[attributeType];
+        return (key.alpha, key.beta, key.gamma, key.delta, key.ic);
     }
     
     /**
@@ -298,11 +318,7 @@ contract ZKIdentityVerifier {
         zkIdentities[user].isActive = false;
     }
     
-    /**
-     * @dev Get user's identity statistics
-     * @param user User address
-     * @return Identity commitment, registration time, active status, and proof count
-     */
+    
     function getIdentityStats(address user) external view returns (
         bytes32 identityCommitment,
         uint256 registrationTime,

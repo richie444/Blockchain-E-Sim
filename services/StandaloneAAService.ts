@@ -19,21 +19,22 @@ export class StandaloneAAService {
   private readonly paymasterUrl: string;
 
   constructor() {
+    // Use local Hardhat network configuration
     this.alchemyApiKey = process.env.EXPO_PUBLIC_ALCHEMY_API_KEY || '';
-    this.contractAddress = process.env.EXPO_PUBLIC_CONTRACT_ADDRESS || '0xb2484cf5bA0922b0375d84E138281F55fC537350';
-    this.bundlerUrl = process.env.EXPO_PUBLIC_BUNDLER_URL || `https://eth-sepolia.g.alchemy.com/v2/${this.alchemyApiKey}`;
+    this.contractAddress = process.env.EXPO_PUBLIC_CONTRACT_ADDRESS || '';
+    
+    // Use local Hardhat RPC URL
+    const rpcUrl = process.env.EXPO_PUBLIC_RPC_URL || 'http://127.0.0.1:8545';
+    this.bundlerUrl = rpcUrl;
     this.paymasterUrl = process.env.EXPO_PUBLIC_PAYMASTER_URL || '';
     
     // Debug environment variables
-    console.log('AA Service Config:', {
-      alchemyApiKey: this.alchemyApiKey ? 'SET' : 'MISSING',
-      contractAddress: this.contractAddress,
-      bundlerUrl: this.bundlerUrl ? 'SET' : 'MISSING'
+    console.log('AA Service Config (Hardhat):', {
+      rpcUrl: rpcUrl,
+      chainId: process.env.EXPO_PUBLIC_CHAIN_ID || '1337',
+      contractAddress: this.contractAddress || 'NOT_SET',
+      networkName: process.env.EXPO_PUBLIC_NETWORK_NAME || 'localhost'
     });
-    
-    if (!this.alchemyApiKey) {
-      console.warn('WARNING: EXPO_PUBLIC_ALCHEMY_API_KEY is not set');
-    }
   }
 
   /**
@@ -41,28 +42,66 @@ export class StandaloneAAService {
    */
   async initialize(): Promise<void> {
     try {
-      console.log('Initializing Standalone Account Abstraction service...');
+      console.log('Initializing Standalone Account Abstraction...');
       
-      if (!this.alchemyApiKey) {
-        throw new Error('Alchemy API key is required but not provided');
+      // Get network configuration from environment
+      const network = process.env.EXPO_PUBLIC_NETWORK || 'hardhat';
+      const rpcUrl = process.env.EXPO_PUBLIC_RPC_URL || 'http://127.0.0.1:8545';
+      
+      if (network === 'hardhat') {
+        console.log('Initializing Standalone Account Abstraction service for Hardhat...');
+        console.log('Creating provider with Hardhat URL:', rpcUrl);
+        
+        // Test connectivity with fetch first
+        const isConnectable = await this.testNetworkConnectivity(rpcUrl);
+        if (!isConnectable) {
+          console.error('Failed to connect to Hardhat node using fetch');
+          throw new Error('Cannot connect to Hardhat node. Make sure it is running and accessible.');
+        }
+        
+        this.provider = new JsonRpcProvider(rpcUrl);
+      } else {
+        // Use Sepolia configuration
+        if (!this.alchemyApiKey) {
+          throw new Error('Alchemy API key is required for Sepolia network');
+        }
+        const providerUrl = `https://eth-sepolia.g.alchemy.com/v2/${this.alchemyApiKey}`;
+        console.log('Creating provider with Sepolia URL:', providerUrl.replace(this.alchemyApiKey, 'HIDDEN'));
+        this.provider = new JsonRpcProvider(providerUrl);
       }
-      
-      // Set up provider
-      const providerUrl = `https://eth-sepolia.g.alchemy.com/v2/${this.alchemyApiKey}`;
-      console.log('Creating provider with URL:', providerUrl.replace(this.alchemyApiKey, 'HIDDEN'));
-      this.provider = new JsonRpcProvider(providerUrl);
       
       // Test provider connection
       try {
-        const network = await this.provider.getNetwork();
-        console.log('Provider connected to network:', network.name, 'chainId:', network.chainId.toString());
-      } catch (providerError) {
+        console.log('Testing provider connection...');
+        const networkInfo = await Promise.race([
+          this.provider.getNetwork(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Connection timeout after 15 seconds')), 15000)
+          )
+        ]) as any;
+        console.log('Provider connected to network:', networkInfo.name, 'chainId:', networkInfo.chainId.toString());
+        
+        // Additional test - get block number
+        const blockNumber = await this.provider.getBlockNumber();
+        console.log('Current block number:', blockNumber);
+        
+      } catch (providerError: any) {
         console.error('Provider connection failed:', providerError);
-        throw new Error(`Failed to connect to provider: ${providerError}`);
+        console.error('Error details:', {
+          message: providerError?.message || 'Unknown error',
+          code: providerError?.code || 'No code',
+          reason: providerError?.reason || 'No reason',
+          url: rpcUrl,
+          network
+        });
+        throw new Error(`Failed to connect to ${network} network. Make sure Hardhat node is running with: npx hardhat node`);
       }
       
       // Get or create wallet
       await this.setupWallet();
+      
+      // Auto-fund wallet if needed (Hardhat only)
+      await this.autoFundWallet();
       
       // In a full ERC-4337 implementation, this would create/get the smart account address
       // For now, we'll use a deterministic address based on the wallet
@@ -100,6 +139,9 @@ export class StandaloneAAService {
       if (this.wallet) {
         console.log('Wallet address:', this.wallet.address);
       }
+      
+      // Auto-fund wallet if on Hardhat network
+      await this.autoFundWallet();
     } catch (error) {
       console.error('Failed to setup wallet:', error);
       throw error;
@@ -125,6 +167,53 @@ export class StandaloneAAService {
     );
     
     return smartAccountAddress;
+  }
+
+  /**
+   * Auto-fund wallet if balance is too low (for Hardhat development)
+   */
+  private async autoFundWallet(): Promise<void> {
+    if (!this.wallet || !this.provider) {
+      return;
+    }
+
+    try {
+      const network = process.env.EXPO_PUBLIC_NETWORK || 'hardhat';
+      
+      // Only auto-fund on Hardhat network
+      if (network !== 'hardhat') {
+        return;
+      }
+
+      const balance = await this.provider.getBalance(this.wallet.address);
+      const balanceETH = Number(ethers.formatEther(balance));
+      
+      console.log(`Current wallet balance: ${balanceETH} ETH`);
+      
+      // If balance is less than 1 ETH, fund it
+      if (balanceETH < 1.0) {
+        console.log('Wallet balance is low, auto-funding...');
+        
+        // Get a pre-funded Hardhat account (using a known private key)
+        const funderPrivateKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+        const funder = new Wallet(funderPrivateKey, this.provider);
+        
+        // Send 10 ETH to the wallet
+        const tx = await funder.sendTransaction({
+          to: this.wallet.address,
+          value: ethers.parseEther('10.0')
+        });
+        
+        await tx.wait();
+        console.log(`Wallet funded with 10 ETH. Transaction: ${tx.hash}`);
+        
+        const newBalance = await this.provider.getBalance(this.wallet.address);
+        console.log(`New wallet balance: ${ethers.formatEther(newBalance)} ETH`);
+      }
+    } catch (error) {
+      console.error('Auto-funding failed:', error);
+      // Don't throw error, just log it - funding failure shouldn't break initialization
+    }
   }
 
   /**
@@ -320,6 +409,39 @@ export class StandaloneAAService {
         gasPrice: '0'
       }
     ];
+  }
+
+  /**
+   * Test network connectivity using fetch
+   */
+  private async testNetworkConnectivity(url: string): Promise<boolean> {
+    try {
+      console.log('Testing network connectivity with fetch to:', url);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_chainId',
+          params: [],
+          id: 1
+        })
+      });
+      
+      if (!response.ok) {
+        console.log('Fetch response not ok:', response.status, response.statusText);
+        return false;
+      }
+      
+      const data = await response.json();
+      console.log('Fetch response:', data);
+      return data.result !== undefined;
+    } catch (error) {
+      console.log('Fetch test failed:', error);
+      return false;
+    }
   }
 }
 
