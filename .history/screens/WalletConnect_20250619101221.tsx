@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Text, SafeAreaView, StatusBar } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Text, SafeAreaView, StatusBar, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAddress } from './WalletContext';
-import { useWeb3Modal, useWeb3ModalAccount } from '@web3modal/ethers-react-native';
+import { useWeb3Modal, useWeb3ModalAccount, useWeb3ModalState } from '@web3modal/ethers-react-native';
 
 const WalletConnect: React.FC = () => {
     const [errorMessage, setErrorMessage] = useState<string>('');
+    const [isConnecting, setIsConnecting] = useState<boolean>(false);
     const { setAddress } = useAddress();
     const navigation = useNavigation();
 
     const { open } = useWeb3Modal();
     const { address, isConnected } = useWeb3ModalAccount();
+    const { open: modalOpen } = useWeb3ModalState();
+
+    console.log('WalletConnect - Current state:', {
+        address,
+        isConnected,
+        modalOpen,
+        errorMessage
+    });
 
     useEffect(() => {
         if (address && isConnected) {
