@@ -25,7 +25,7 @@ type HomeScreenNavigationProp = StackNavigationProp<BottomTabParamList, 'Wallet'
   navigate: (screen: 'Wallet', params: TabWalletParamList['WalletScreen']) => void;
 };
 
-const CONTRACT_ADDRESS = '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9';
+const CONTRACT_ADDRESS = '0xb2484cf5bA0922b0375d84E138281F55fC537350';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
@@ -58,11 +58,9 @@ const HomeScreen: React.FC = () => {
     try {
       const provider = standaloneAAService.getProvider();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
-      const isRegistered = await contract.users(address);
-      const user = await contract.userDetails(address);
-      
-      setIsRegistered(isRegistered);
-      if (isRegistered) {
+      const user = await contract.users(address);
+      setIsRegistered(user.isRegistered);
+      if (user.isRegistered) {
         setName(user.name);
         setEmail(user.email);
         setSimNumber(user.simNumber);
@@ -146,18 +144,13 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
-    if (!standaloneAAService) {
+    if (!aaService) {
       Alert.alert('Error', 'AA service not available');
       return;
     }
 
     try {
-      const provider = standaloneAAService.getProvider();
-      if (!provider) {
-        Alert.alert('Error', 'Provider not available');
-        return;
-      }
-      
+      const provider = aaService.getProvider();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
 
       const [userName, userEmail, isRegistered] = await contract.getUserDetails(loginSimNumber);
@@ -181,7 +174,7 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  if (!connected || !address) {
+  if (!isConnected || !address) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
@@ -365,12 +358,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4A5568',
     marginBottom: 5,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#4A5568',
-    marginTop: 10,
-    textAlign: 'center',
   },
 });
 

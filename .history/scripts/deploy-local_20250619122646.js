@@ -28,13 +28,13 @@ async function main() {
 
   console.log("\n=== Deployment Summary ===");
   console.log("ZKIdentityVerifier:", zkVerifierAddress);
-  console.log("AccountAbstraction (Main Contract):", accountAbstractionAddress);
+  console.log("SimCard (Main Contract):", simCardAddress);
   console.log("Network: localhost (Hardhat)");
   console.log("Chain ID: 1337");
   
   console.log("\n=== Ready to use! ===");
   console.log("Update your .env file with:");
-  console.log(`EXPO_PUBLIC_CONTRACT_ADDRESS=${accountAbstractionAddress}`);
+  console.log(`EXPO_PUBLIC_CONTRACT_ADDRESS=${simCardAddress}`);
   console.log(`EXPO_PUBLIC_ZK_VERIFIER_ADDRESS=${zkVerifierAddress}`);
 }
 

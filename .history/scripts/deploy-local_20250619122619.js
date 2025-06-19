@@ -18,24 +18,24 @@ async function main() {
   const zkVerifierAddress = await zkVerifier.getAddress();
   console.log("ZKIdentityVerifier deployed to:", zkVerifierAddress);
 
-  // Deploy the main Account Abstraction contract
-  const AccountAbstraction = await ethers.getContractFactory("AccountAbstraction");
-  console.log("Deploying AccountAbstraction contract...");
-  const accountAbstraction = await AccountAbstraction.deploy();
-  await accountAbstraction.waitForDeployment();
-  const accountAbstractionAddress = await accountAbstraction.getAddress();
-  console.log("AccountAbstraction deployed to:", accountAbstractionAddress);
+  // Deploy the main eSIM contract
+  const SimCard = await ethers.getContractFactory("SimCard");
+  console.log("Deploying SimCard contract...");
+  const simCard = await SimCard.deploy();
+  await simCard.waitForDeployment();
+  const simCardAddress = await simCard.getAddress();
+  console.log("SimCard deployed to:", simCardAddress);
 
   console.log("\n=== Deployment Summary ===");
   console.log("ZKIdentityVerifier:", zkVerifierAddress);
-  console.log("AccountAbstraction (Main Contract):", accountAbstractionAddress);
+  console.log("SimCard (Main Contract):", simCardAddress);
   console.log("Network: localhost (Hardhat)");
   console.log("Chain ID: 1337");
   
   console.log("\n=== Ready to use! ===");
   console.log("Update your .env file with:");
-  console.log(`EXPO_PUBLIC_CONTRACT_ADDRESS=${accountAbstractionAddress}`);
-  console.log(`EXPO_PUBLIC_ZK_VERIFIER_ADDRESS=${zkVerifierAddress}`);
+  console.log(`EXPO_PUBLIC_CONTRACT_ADDRESS=${simCard.address}`);
+  console.log(`EXPO_PUBLIC_ZK_VERIFIER_ADDRESS=${zkVerifier.address}`);
 }
 
 main()

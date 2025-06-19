@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAddress } from './WalletContext';
-import { standaloneAAService } from '../services/StandaloneAAService';
 import 'react-native-get-random-values';
 import '@ethersproject/shims';
 import { ethers } from 'ethers';
@@ -25,11 +24,11 @@ type HomeScreenNavigationProp = StackNavigationProp<BottomTabParamList, 'Wallet'
   navigate: (screen: 'Wallet', params: TabWalletParamList['WalletScreen']) => void;
 };
 
-const CONTRACT_ADDRESS = '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9';
+const CONTRACT_ADDRESS = '0xb2484cf5bA0922b0375d84E138281F55fC537350';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
-  const { address, connected, isAAInitialized } = useAddress();
+  const { setAddress, setConnected } = useAddress();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [simNumber, setSimNumber] = useState('');
@@ -37,6 +36,8 @@ const HomeScreen: React.FC = () => {
   const [loginSimNumber, setLoginSimNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activityLog, setActivityLog] = useState<string[]>([]);
+  const { address, isConnected } = useWeb3ModalAccount();
+  const { walletProvider } = useWeb3ModalProvider();
 
   const addToActivityLog = (message: string) => {
     setActivityLog((prevLog) => [...prevLog, message]);
@@ -44,29 +45,34 @@ const HomeScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    if (address && isAAInitialized) {
+    if (address) {
       checkRegistrationStatus();
     }
-  }, [address, isAAInitialized]);
+  }, [address]);
+
+  const connectWallet = async () => {
+    try {
+      setAddress(address);
+      setConnected(isConnected);
+      addToActivityLog(`Connected wallet: ${address}`);
+    } catch (error) {
+      console.error('Wallet connection error:', error);
+      Alert.alert('Error', 'Failed to connect wallet');
+      addToActivityLog('Failed to connect wallet');
+    }
+  };
 
   const checkRegistrationStatus = async () => {
-    if (!standaloneAAService || !address) {
-      addToActivityLog('AA service or address not available');
-      return;
-    }
-
     try {
-      const provider = standaloneAAService.getProvider();
+      const provider = new BrowserProvider(walletProvider);
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
-      const isRegistered = await contract.users(address);
-      const user = await contract.userDetails(address);
-      
-      setIsRegistered(isRegistered);
-      if (isRegistered) {
+      const user = await contract.users(address);
+      setIsRegistered(user.isRegistered);
+      if (user.isRegistered) {
         setName(user.name);
         setEmail(user.email);
         setSimNumber(user.simNumber);
-        setLoginSimNumber(user.simNumber);
+        setLoginSimNumber(user.simNumber); // Set the login SIM number
       }
       addToActivityLog('Checked registration status');
     } catch (error) {
@@ -81,60 +87,37 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
-    if (!standaloneAAService) {
-      Alert.alert('Error', 'AA service not available');
-      return;
-    }
-
     try {
       setIsLoading(true);
-      addToActivityLog('Starting user registration...');
-      
-      // Use the AA service to execute the transaction
-      const contractInterface = new ethers.Interface(ESIM.abi);
-      const data = contractInterface.encodeFunctionData('registerUser', [name, email]);
-      
-      const txHash = await standaloneAAService.executeGaslessTransaction(CONTRACT_ADDRESS, data);
-      addToActivityLog(`Transaction sent: ${txHash}`);
-      
-      // Wait for the transaction to be mined and get the receipt
-      const provider = standaloneAAService.getProvider();
-      if (provider) {
-        const receipt = await provider.waitForTransaction(txHash);
-        
-        if (receipt) {
-          // Parse the logs to find the UserRegistered event
-          const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
-          const logs = receipt.logs;
-          
-          for (const log of logs) {
-            try {
-              const parsedLog = contract.interface.parseLog(log);
-              if (parsedLog && parsedLog.name === 'UserRegistered') {
-                const [userAddress, newSimNumber] = parsedLog.args;
-                setSimNumber(newSimNumber);
-                setIsRegistered(true);
-                Alert.alert('Success', `User registered successfully. Your SIM number is ${newSimNumber}`);
-                addToActivityLog(`User registered with SIM number: ${newSimNumber}`);
-                await checkRegistrationStatus();
-                return;
-              }
-            } catch (e) {
-              // Skip logs that can't be parsed
-            }
-          }
-          
-          // If no event found, still mark as success but without SIM number
-          Alert.alert('Success', 'User registered successfully');
-          addToActivityLog('User registered successfully');
-          await checkRegistrationStatus();
-        }
+      const provider = new BrowserProvider(walletProvider);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, signer);
+
+      const tx = await contract.registerUser(name, email);
+      const receipt = await tx.wait();
+
+      const event = receipt.events?.find((event: { event: string }) => event.event === 'UserRegistered');
+      if (event) {
+        const [userAddress, newSimNumber] = event.args;
+        setSimNumber(newSimNumber);
+        setIsRegistered(true);
+        Alert.alert('Success', `User registered successfully. Your SIM number is ${newSimNumber}`);
+        addToActivityLog(`User registered with SIM number: ${newSimNumber}`);
+      } else {
+        Alert.alert('Error', 'User registered but no SIM number was generated');
+        addToActivityLog('User registered but no SIM number was generated');
       }
+
+      checkRegistrationStatus();
     } catch (error: any) {
       console.error('Registration error:', error);
-      const errorMessage = error.message || 'Failed to register user';
-      Alert.alert('Error', errorMessage);
-      addToActivityLog(`Registration error: ${errorMessage}`);
+      if (error.error && error.error.message) {
+        Alert.alert('Error', error.error.message);
+        addToActivityLog(`Registration error: ${error.error.message}`);
+      } else {
+        Alert.alert('Error', 'Failed to register user');
+        addToActivityLog('Failed to register user');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -146,18 +129,8 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
-    if (!standaloneAAService) {
-      Alert.alert('Error', 'AA service not available');
-      return;
-    }
-
     try {
-      const provider = standaloneAAService.getProvider();
-      if (!provider) {
-        Alert.alert('Error', 'Provider not available');
-        return;
-      }
-      
+      const provider = new BrowserProvider(walletProvider);
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
 
       const [userName, userEmail, isRegistered] = await contract.getUserDetails(loginSimNumber);
@@ -165,7 +138,7 @@ const HomeScreen: React.FC = () => {
       if (isRegistered) {
         addToActivityLog('User is registered. Navigating to Wallet...');
         navigation.navigate('Wallet', {
-          address: address || '',
+          address: address,
           name: userName,
           email: userEmail,
           simNumber: loginSimNumber,
@@ -181,14 +154,15 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  if (!connected || !address) {
+  if (!isConnected) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
           <Text style={styles.title}>E-SIM Wallet</Text>
           <View style={styles.card}>
-            <ActivityIndicator size="large" color="#4A90E2" />
-            <Text style={styles.loadingText}>Initializing wallet...</Text>
+            <TouchableOpacity style={styles.button} onPress={connectWallet}>
+              <Text style={styles.buttonText}>Connect Wallet</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
@@ -365,12 +339,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4A5568',
     marginBottom: 5,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#4A5568',
-    marginTop: 10,
-    textAlign: 'center',
   },
 });
 

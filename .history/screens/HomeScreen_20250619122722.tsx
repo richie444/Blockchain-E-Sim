@@ -58,11 +58,9 @@ const HomeScreen: React.FC = () => {
     try {
       const provider = standaloneAAService.getProvider();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
-      const isRegistered = await contract.users(address);
-      const user = await contract.userDetails(address);
-      
-      setIsRegistered(isRegistered);
-      if (isRegistered) {
+      const user = await contract.users(address);
+      setIsRegistered(user.isRegistered);
+      if (user.isRegistered) {
         setName(user.name);
         setEmail(user.email);
         setSimNumber(user.simNumber);

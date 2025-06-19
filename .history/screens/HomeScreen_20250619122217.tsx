@@ -25,7 +25,7 @@ type HomeScreenNavigationProp = StackNavigationProp<BottomTabParamList, 'Wallet'
   navigate: (screen: 'Wallet', params: TabWalletParamList['WalletScreen']) => void;
 };
 
-const CONTRACT_ADDRESS = '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9';
+const CONTRACT_ADDRESS = '0xb2484cf5bA0922b0375d84E138281F55fC537350';
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
@@ -58,11 +58,9 @@ const HomeScreen: React.FC = () => {
     try {
       const provider = standaloneAAService.getProvider();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
-      const isRegistered = await contract.users(address);
-      const user = await contract.userDetails(address);
-      
-      setIsRegistered(isRegistered);
-      if (isRegistered) {
+      const user = await contract.users(address);
+      setIsRegistered(user.isRegistered);
+      if (user.isRegistered) {
         setName(user.name);
         setEmail(user.email);
         setSimNumber(user.simNumber);
@@ -94,41 +92,39 @@ const HomeScreen: React.FC = () => {
       const contractInterface = new ethers.Interface(ESIM.abi);
       const data = contractInterface.encodeFunctionData('registerUser', [name, email]);
       
-      const txHash = await standaloneAAService.executeGaslessTransaction(CONTRACT_ADDRESS, data);
+      const txHash = await standaloneAAService.executeTransaction(CONTRACT_ADDRESS, data);
       addToActivityLog(`Transaction sent: ${txHash}`);
       
       // Wait for the transaction to be mined and get the receipt
       const provider = standaloneAAService.getProvider();
-      if (provider) {
-        const receipt = await provider.waitForTransaction(txHash);
+      const receipt = await provider.waitForTransaction(txHash);
+      
+      if (receipt) {
+        // Parse the logs to find the UserRegistered event
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
+        const logs = receipt.logs;
         
-        if (receipt) {
-          // Parse the logs to find the UserRegistered event
-          const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
-          const logs = receipt.logs;
-          
-          for (const log of logs) {
-            try {
-              const parsedLog = contract.interface.parseLog(log);
-              if (parsedLog && parsedLog.name === 'UserRegistered') {
-                const [userAddress, newSimNumber] = parsedLog.args;
-                setSimNumber(newSimNumber);
-                setIsRegistered(true);
-                Alert.alert('Success', `User registered successfully. Your SIM number is ${newSimNumber}`);
-                addToActivityLog(`User registered with SIM number: ${newSimNumber}`);
-                await checkRegistrationStatus();
-                return;
-              }
-            } catch (e) {
-              // Skip logs that can't be parsed
+        for (const log of logs) {
+          try {
+            const parsedLog = contract.interface.parseLog(log);
+            if (parsedLog && parsedLog.name === 'UserRegistered') {
+              const [userAddress, newSimNumber] = parsedLog.args;
+              setSimNumber(newSimNumber);
+              setIsRegistered(true);
+              Alert.alert('Success', `User registered successfully. Your SIM number is ${newSimNumber}`);
+              addToActivityLog(`User registered with SIM number: ${newSimNumber}`);
+              await checkRegistrationStatus();
+              return;
             }
+          } catch (e) {
+            // Skip logs that can't be parsed
           }
-          
-          // If no event found, still mark as success but without SIM number
-          Alert.alert('Success', 'User registered successfully');
-          addToActivityLog('User registered successfully');
-          await checkRegistrationStatus();
         }
+        
+        // If no event found, still mark as success but without SIM number
+        Alert.alert('Success', 'User registered successfully');
+        addToActivityLog('User registered successfully');
+        await checkRegistrationStatus();
       }
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -146,18 +142,13 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
-    if (!standaloneAAService) {
+    if (!aaService) {
       Alert.alert('Error', 'AA service not available');
       return;
     }
 
     try {
-      const provider = standaloneAAService.getProvider();
-      if (!provider) {
-        Alert.alert('Error', 'Provider not available');
-        return;
-      }
-      
+      const provider = aaService.getProvider();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ESIM.abi, provider);
 
       const [userName, userEmail, isRegistered] = await contract.getUserDetails(loginSimNumber);
@@ -181,7 +172,7 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  if (!connected || !address) {
+  if (!isConnected || !address) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
@@ -365,12 +356,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4A5568',
     marginBottom: 5,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#4A5568',
-    marginTop: 10,
-    textAlign: 'center',
   },
 });
 
